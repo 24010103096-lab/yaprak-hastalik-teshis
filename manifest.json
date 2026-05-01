@@ -1,7 +1,7 @@
 {
   "name": "Bitki Doktoru Pro",
-  "short_name": "BitkiDoktoru",
-  "start_url": ".",
+  "short_name": "Tarım Asistanı",
+  "start_url": "./",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#2e7d32",
