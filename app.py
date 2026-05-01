@@ -85,13 +85,18 @@ with col2:
             with st.spinner("Hücresel düzeyde analiz yapılıyor..."):
                 try:
                     # 1. Hata Çözümü: Dinamik Boyutlandırma
-                    target_size = model.input_shape[1:3]
+                    target_size = (224, 224) # Yedek standart boyut
+                    if model.input_shape[1] is not None:
+                        target_size = model.input_shape[1:3]
+                        
                     img = image.convert('RGB').resize(target_size)
                     
-                    arr = np.array(img) / 255.0
-                    arr = np.expand_dims(arr, axis=0).astype(np.float32)
+                    # 2. KRİTİK ÇÖZÜM: Renk ölçeklendirmesi (bölme işlemi) iptal edildi. 
+                    # Artık resimler simsiyah algılanmayacak.
+                    arr = np.array(img, dtype=np.float32)
+                    arr = np.expand_dims(arr, axis=0)
                     
-                    # 2. Hata Çözümü: Softmax ile Gerçek Yüzde Oranı Bulma
+                    # 3. Softmax ile Gerçek Yüzde Oranı Bulma
                     preds = model.predict(arr)
                     probabilities = tf.nn.softmax(preds[0]).numpy() 
                     
