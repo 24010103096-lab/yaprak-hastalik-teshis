@@ -1,16 +1,15 @@
 import streamlit as st
 import tensorflow as tf
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageOps
 import json
 import os
 from datetime import datetime
 import pandas as pd
 
-# --- SAYFA AYARLARI (Mobil Uyumluluk İçin) ---
+# --- SAYFA AYARLARI ---
 st.set_page_config(page_title="Bitki Doktoru", page_icon="🌿", layout="wide")
 
-# Özel Tasarım (Mobil butonlar ve arka plan)
 st.markdown("""
     <style>
     .main { background-color: #f5f7f9; }
@@ -43,7 +42,6 @@ REHBER = {
     "default": "⚠️ **Öneri:** Bitkiyi izole edin ve bir ziraat uzmanına danışın."
 }
 
-# --- 3. GEÇMİŞ KAYIT FONKSİYONU ---
 def save_log(result, confidence):
     log_file = "teshis_gecmisi.csv"
     now = datetime.now().strftime("%d-%m-%Y %H:%M")
@@ -56,19 +54,15 @@ def save_log(result, confidence):
 # --- 4. ANA ARAYÜZ ---
 st.title("🌿 Akıllı Tarım İstasyonu")
 
-# Sol Panel / Telefon için Üst Panel
 with st.sidebar:
     st.header("🌦️ Tarla Durumu")
     st.metric(label="Sıcaklık", value="24°C", delta="Nem: %82", delta_color="inverse")
     st.warning("⚠️ Nem yüksek. Mantar hastalıklarına dikkat!")
-    
     st.divider()
     st.header("📜 Son Teşhisler")
     if os.path.exists("teshis_gecmisi.csv"):
-        df = pd.read_csv("teshis_gecmisi.csv").tail(5)
-        st.dataframe(df, use_container_width=True)
+        st.dataframe(pd.read_csv("teshis_gecmisi.csv").tail(5), use_container_width=True)
 
-# Sağ Panel / Telefon için Ana İçerik
 col1, col2 = st.columns([1, 1])
 
 with col1:
@@ -78,25 +72,28 @@ with col1:
 
 with col2:
     if img_input:
-        image = Image.open(img_input)
+        image = Image.open(img_input).convert('RGB')
         st.image(image, use_container_width=True, caption="İncelenen Yaprak")
         
         if st.button("🔎 YAPAY ZEKAYI ÇALIŞTIR"):
             with st.spinner("Hücresel düzeyde analiz yapılıyor..."):
                 try:
-                    # 1. Hata Çözümü: Dinamik Boyutlandırma
-                    target_size = (224, 224) # Yedek standart boyut
+                    # Boyutlandırma
+                    target_size = (224, 224) 
                     if model.input_shape[1] is not None:
                         target_size = model.input_shape[1:3]
-                        
-                    img = image.convert('RGB').resize(target_size)
                     
-                    # 2. KRİTİK ÇÖZÜM: Renk ölçeklendirmesi (bölme işlemi) iptal edildi. 
-                    # Artık resimler simsiyah algılanmayacak.
+                    # Resmi kırpmadan (bozmadan) sığdırma (Teachable Machine standardı)
+                    img = ImageOps.fit(image, target_size, Image.Resampling.LANCZOS)
+                    
+                    # --- KRİTİK ÇÖZÜM NOKTASI ---
+                    # Renkleri modelin beklediği -1 ile +1 aralığına çekiyoruz!
                     arr = np.array(img, dtype=np.float32)
+                    arr = (arr / 127.5) - 1.0 
+                    # -----------------------------
+                    
                     arr = np.expand_dims(arr, axis=0)
                     
-                    # 3. Softmax ile Gerçek Yüzde Oranı Bulma
                     preds = model.predict(arr)
                     probabilities = tf.nn.softmax(preds[0]).numpy() 
                     
@@ -104,15 +101,11 @@ with col2:
                     conf = np.max(probabilities) * 100
                     res_name = class_names[str(idx)]
                     
-                    # Kayıt Sistemi
                     save_log(res_name, f"%{conf:.1f}")
-                    
-                    # Sonuçları Göster
                     st.success(f"**Teşhis Edildi:** {res_name}")
                     st.metric("Yapay Zeka Güven Skoru", f"%{conf:.1f}")
                     st.progress(int(conf))
                     
-                    # Tedavi Önerisi
                     tavsiye = next((v for k, v in REHBER.items() if k in res_name), REHBER["default"])
                     st.info(tavsiye)
                     
